@@ -11,6 +11,7 @@ import copy
 import random
 import datetime
 import KSP
+import numpy as np
 
 # in v1_4, we start to use continuous time simulation (still with a time granularity,
 # but instead of the number of requests at each following the Poisson distribution,
@@ -105,6 +106,31 @@ linkmap[27][13] = (69, 100)
 linkmap[14][28] = (70, 100)
 linkmap[28][14] = (71, 100)
 
+
+def Generate_slice_service_array(n=14, level=5):
+    random.seed(666)
+    nums = [[0] * (14+n) for _ in range(n)]
+    for i in range(n):
+        for j in range(14 + i + 1, 14 + n):
+            nums[i][j] = random.randint(1, level)
+            nums[j - 14][i + 14] = nums[i][j]
+    return nums
+
+
+def get_node_importance(n, trafic_dis):
+    temp_dict = {}
+    for i in range(n):
+        temp_dict[i+1] = sum(trafic_dis[i])
+    return temp_dict
+
+
+def get_node_degree(linkmap):
+    temp_dict = {}
+    for key, val in linkmap.items():
+        temp_dict[key] = len(val)
+    return temp_dict
+
+
 nonuniform = False  # True #
 # traffic distribution, when non-uniform traffic is considered
 trafic_dis = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -120,21 +146,13 @@ trafic_dis = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]]
+              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+
+slice_service = Generate_slice_service_array(14, 5)
+trafic_dis += slice_service
+# 获得含有业务重要度的字典
+Importance_dict = get_node_importance(28, trafic_dis)
+node_degree_dict = get_node_degree(linkmap)
 
 prob = np.array(trafic_dis) / np.sum(trafic_dis)  # 既没有按行也没有按列，而是按照总数的归一化
 LINK_NUM = 44 + 28
@@ -170,34 +188,7 @@ num_src_dest_pair = len(Src_Dest_Pair)
 prob_arr[-1] += 1 - sum(prob_arr)  # 这一步的作用是为了保证prob_arr的概率和为1
 
 # KSP算法算路，扩展为28个节点的， 10条
-# Candidate_Paths = KSP.calcualte_Candidate_Paths(linkmap, NODE_NUM, 10)
-
-# Candidate_Paths = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: None)))  # Candidate_Paths[i][j][k]:the k-th path from i to j
-# fp = open('Src_Dst_Paths.dat', 'rb')
-# for ii in range(1, NODE_NUM * NODE_NUM + 1):  # NODE_NUM*NODE_NUM import precalculated paths (in terms of path_links)
-#     # temp_path = []
-#     if ii % NODE_NUM == 0:              # ii为14的整数倍时
-#         i = ii // NODE_NUM              # i为14的倍数
-#         j = (ii % NODE_NUM) + NODE_NUM  # j一直为14
-#     else:
-#         i = (ii // NODE_NUM) + 1        # i为14的倍数结果加q1
-#         j = ii % NODE_NUM               # j为1到14循环
-#     # i:[1,1,1,...,1,  2,2,2,...,2,  ......, 14,14,14,...,14]
-#     # j:[1,2,3,...,14, 1,2,3,...,14, ......, 1, 2, 3, ...,14]
-#     temp_num = []
-#     for tt in range(N):  # number of paths each src-dest pair 源节点和目标节点对的路径数量
-#         test = list(struct.unpack("i" * 1, fp.read(4 * 1)))
-#         # struct.unpack("i", bytes)解压一个二进制字符，这句话是将文件中读取的4个二进制字节解压为字符串，返回的是元组。注意，fp.read()是顺序读取，没循环一次接着上次的位置读取
-#         temp_num += test  # temp_num[0]: the node-num of path k
-#     if j == 15:
-#         print("test")
-#
-#     if i != j:
-#         for k in range(N):
-#             temp_path = list(struct.unpack("i" * temp_num[k], fp.read(4 * temp_num[k])))
-#             Candidate_Paths[i][j][k] = temp_path
-#             # note, if there are less than N paths for certain src-dest pairs, then the last a few values of temp_num equate to '0'
-# fp.close()
+Candidate_Paths = KSP.calcualte_Candidate_Paths(linkmap, NODE_NUM, 10)
 
 
 def _get_path(src, dst, Candidate_Paths, k):  # get path k of from src->dst
@@ -358,9 +349,11 @@ def data_write(file_path, datas):
     f.save(file_path)  # 保存文件
 
 
-def restore(n, nodes_order, paths_order):
-    if n < len(nodes_order):
-        normal_nodes.append(nodes_order[n])
+def restore(n, t_nodes_orders, c_nodes_orders, paths_order):
+    if n < len(t_nodes_orders):
+        normal_nodes.append(t_nodes_orders[n])
+    if n < len(c_nodes_orders):
+        normal_nodes.append(c_nodes_orders[n])
     for i in range(len(paths_order)-1, -1, -1):
         if paths_order[i][0] in normal_nodes and paths_order[i][1] in normal_nodes:
             temp = paths_order[i]
@@ -368,15 +361,95 @@ def restore(n, nodes_order, paths_order):
             Fault_nodes.remove(temp)
 
 
-def tanlan(nodes_order, paths_order):
-    pass
+def get_surround_nodes(node, normal_nodes, linkmap):
+    num = 0
+    for i in normal_nodes:
+        if linkmap[node][i] is not None:
+            num += 1
+    return num
+
+
+# ！！！！！！边的恢复思路不清晰
+def get_surround_edge(node, normal_node, linkmap, fault_edge):
+    candidate_edge = []
+    for i in range(1, 15):
+        if linkmap[node][i] is not None and ([node, i] in fault_edge or [i, node] in fault_edge):
+            if i in normal_node:
+                candidate_edge.append([node, i, -linkmap[node][i][1], 1] if node < i else [i, node, -linkmap[i][node][1], 1])
+            else:
+                candidate_edge.append([node, i, -linkmap[node][i][1], 0] if node < i else [i, node, -linkmap[i][node][1], 0])
+    candidate_edge.sort(key=lambda x: (x[3], x[2], x[0]), reverse=True)
+    candidate_edge_list = np.array(candidate_edge)[:, :2].tolist()
+    while len(candidate_edge_list) < 2:
+        candidate_edge_list.append(fault_edge.popleft())
+
+    return candidate_edge_list[0], candidate_edge_list[1]   # 返回一个2*2的二维数组，每一行是候选的修复边
+
+
+def greedy_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes, Importance_dict, node_degree_dict, linkmap):
+    temp_t_nodes_order = []
+    temp_c_nodes_order = []
+
+    fault_edge_order_t = []
+    fault_edge_order_c = []
+    fault_edge_order = []
+
+    t_nodes_order_list = []
+    t_nodes_order = t_nodes_orders.copy()
+    c_nodes_order = c_nodes_orders.copy()
+    fault_edge = Fault_nodes.copy()
+    normal_node = normal_nodes.copy()
+
+    # 云的恢复
+    # 恢复云节点
+    for i in c_nodes_order:
+        temp_c_nodes_order.append([i, Importance_dict[i]])
+    temp_c_nodes_order.sort(key=lambda x: (x[1], x[0]), reverse=True)
+    c_nodes_order_list = [i[0] for i in temp_c_nodes_order]
+    # 恢复云节点对应的边
+    for j in c_nodes_order_list:
+        for i in range(1, 15):
+            if linkmap[i][j] is not None:
+                restore_edge_c = [i, j]
+                fault_edge.remove([i, j])
+                fault_edge_order_c.append(restore_edge_c)
+
+    # 网的恢复
+    for i in range(len(t_nodes_order)):
+        # 恢复传送节点
+        for j in t_nodes_order:
+            surround_nodes_num = get_surround_nodes(j, normal_node, linkmap)
+            temp_t_nodes_order.append([j, node_degree_dict[j], surround_nodes_num])
+        temp_t_nodes_order.sort(key=lambda x: (x[1], x[2], x[0]), reverse=True)
+        restore_node = temp_t_nodes_order[0][0]  # 获得当前阶段的恢复节点
+        temp_t_nodes_order = []                  # 清理暂时的传送节点序列
+        normal_node.append(restore_node)         # 将恢复的传送节点加入到正常节点中
+        t_nodes_order.remove(restore_node)       # 将恢复的传送节点从未回复的传送节点中移除
+        t_nodes_order_list.append(restore_node)  # 将恢复的传送节点按照顺序加入到节点恢复顺序列表中去
+        # 恢复传送边
+        restore_edge_t1,  restore_edge_t2 = get_surround_edge(restore_node, normal_node, linkmap, fault_edge)
+        fault_edge.remove(restore_edge_t1)
+        fault_edge.remove(restore_edge_t2)
+        fault_edge_order_t.append(restore_edge_t1)
+        fault_edge_order_t.append(restore_edge_t2)
+
+    # 总的恢复边的顺序
+    for i in range(len(fault_edge_order_c)):
+        fault_edge_order.append(fault_edge_order_c[i])
+        fault_edge_order.append(fault_edge_order_t[(i*2)])
+        fault_edge_order.append(fault_edge_order_t[(i*2)+1])
+
+    while len(fault_edge_order) < len(Fault_nodes):
+        fault_edge_order.append(fault_edge.popleft())
+
+    return t_nodes_order_list, c_nodes_order_list, fault_edge_order
 
 
 if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "随机算法"  # 随机算法 贪婪算法 自创算法
+    algorithm = "贪婪算法"  # 随机算法 贪婪算法 自创算法
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
@@ -384,141 +457,151 @@ if __name__ == "__main__":
     # 故障节点
     global Fault_nodes, normal_nodes, paths_order
     paths_order = deque([])
-    nodes_order = [4, 5, 6, 7, 8, 19, 20, 21, 22, 23]
+    t_nodes_orders = [4, 5, 6, 7, 8]
+    c_nodes_orders = [18, 19, 20, 21, 22]
     Fault_nodes = deque([[1, 8], [2, 4], [3, 6], [4, 5], [4, 11], [5, 7], [5, 6], [6, 10], [6, 14], [7, 10], [7, 8], [8, 9],
-                         [4, 18], [5, 19], [6, 20], [7, 21], [8, 22], [9, 23]])  # 双向队列
-    normal_nodes = [1, 2, 3, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28]
-    print("原始节点-node：", nodes_order)
+                         [4, 18], [5, 19], [6, 20], [7, 21], [8, 22]])  # 双向队列
+    normal_nodes = [1, 2, 3, 9, 10, 11, 12, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28]
+    print("原始通信节点-t_node：", t_nodes_orders)
+    print("原始计算节点-c_node：", c_nodes_orders)
     print("原始路径-path：", Fault_nodes)
+
     # 故障节点恢复顺序
     if algorithm == "随机算法":
-        random.shuffle(nodes_order)
+
+        random.shuffle(t_nodes_orders)
+        random.shuffle(c_nodes_orders)
         random.shuffle(Fault_nodes)
         Fault_nodes_copy = Fault_nodes.copy()
-        print("随机算法-node：", nodes_order)
+        print("随机算法-t_node：", t_nodes_orders)
+        print("随机算法-c_node：", c_nodes_orders)
         print("随机算法-path：", Fault_nodes)
 
     elif algorithm == "贪婪算法":
 
+        t_nodes_orders, c_nodes_orders, Fault_nodes = greedy_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes, Importance_dict, node_degree_dict, linkmap)
+        Fault_nodes = deque(Fault_nodes)
         Fault_nodes_copy = Fault_nodes.copy()
-        # nodes_order = [6, 7, 4, 5, 8]
-        # Fault_nodes = deque([[3, 6], [6, 10], [5, 6], [6, 14], [7, 8], [7, 10], [5, 7], [2, 4], [4, 5], [4, 11], [1, 8], [8, 9]])
-        nodes_order = [6, 4, 5, 7, 8]
-        Fault_nodes = deque([[6, 10], [6, 14], [2, 4], [4, 11], [4, 5], [5, 6], [5, 7], [7, 10], [7, 8], [8, 9], [1, 8], [3, 6]])
-        print("贪婪算法-node：", nodes_order)
+        print("贪婪算法-t_node：", t_nodes_orders)
+        print("贪婪算法-c_node：", c_nodes_orders)
         print("贪婪算法-path：", Fault_nodes)
 
-    for ex in range(15):
+    for ex in range(10):
 
         np.random.seed(666)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
         # 从ex为1的时候才开始修复，第0轮保持不变
         if ex > 0:
-            # 每一轮修复一个节点对
-            if len(Fault_nodes_copy) > 1:  # Fault_nodes_copy中还剩两个故障边恢复时
+            # 每一轮修复一个节点对 每一轮修复两个节点（一个计算节点一个边节点），三条节点边
+            if len(Fault_nodes_copy) > 2:  # Fault_nodes_copy中还剩两个故障边恢复时
                 paths_order.append(Fault_nodes_copy.popleft())
                 paths_order.append(Fault_nodes_copy.popleft())
-                # restore(ex - 1, nodes_order, paths_order)
-            elif len(Fault_nodes_copy) > 0:  # # Fault_nodes_copy中还剩一个故障边恢复时
                 paths_order.append(Fault_nodes_copy.popleft())
-            restore(ex - 1, nodes_order, paths_order)
+            elif len(Fault_nodes_copy) > 1:  # # Fault_nodes_copy中还剩一个故障边恢复时
+                paths_order.append(Fault_nodes_copy.popleft())
+                paths_order.append(Fault_nodes_copy.popleft())
+            elif len(Fault_nodes_copy) > 0:
+                paths_order.append(Fault_nodes_copy.popleft())
+            restore(ex - 1, t_nodes_orders, c_nodes_orders, paths_order)
 
-        # # initiate the EON
-        # slot_map = [[1 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # Initialized to be all available
-        # slot_map_t = [[0 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # the time each FS will be occupied
-        #
-        # service_time = lambda_time[np.random.randint(0, len_lambda_time)]  # 前面设置len_lambda_time为1，
-        # lambda_intervals = 1 / lambda_req  # average time interval between request
-        #
-        # request_set = {}
-        #
-        # req_id = 0
-        # num_blocks = 0
-        #
-        # time_to = 0
-        # num_req_measure = 10000
-        # resource_util = []
-        #
-        # while req_id < num_req_measure + 3000:
-        #
-        #     (slot_map, request_set, slot_map_t) = release(slot_map, request_set, slot_map_t, time_to)
-        #
-        #     time_to = 0
-        #     while time_to == 0:
-        #         time_to = np.random.exponential(lambda_intervals)
-        #
-        #     if True:  # If is used just for the sake of convenience...
-        #
-        #         req_id += 1
-        #
-        #         # generate current request
-        #         if nonuniform is True:
-        #             sd_onehot = [x for x in range(num_src_dest_pair)]
-        #             sd_id = np.random.choice(sd_onehot, p=prob_arr)
-        #             temp = Src_Dest_Pair[sd_id]
-        #         else:
-        #             temp = Src_Dest_Pair[np.random.randint(0, num_src_dest_pair)]
-        #         current_src = temp[0]
-        #         current_dst = temp[1]
-        #         current_bandwidth = np.random.randint(Bandwidth_start, Bandwidth_end)
-        #         current_TTL = 0
-        #         while current_TTL == 0 or current_TTL >= service_time * 2:
-        #             current_TTL = np.random.exponential(service_time)
-        #
-        #         #  start provision the request
-        #         blocking = 0
-        #
-        #         for rr in range(kpath):
-        #
-        #             path_id = rr // M  # path to use
-        #             FS_id = math.fmod(rr, M)  # 取余数 the FS_id's available FS-block to use
-        #
-        #             path = _get_path(current_src, current_dst, Candidate_Paths, path_id)  # 最短路径[2,4,5,7]
-        #             # 判断路径中是否有故障节点，有的话直接阻塞+1
-        #             for i in range(len(path)-1):
-        #                 temp = path[i:i+2]
-        #                 if temp in Fault_nodes or temp.reverse() in Fault_nodes:
-        #                     blocking = 1
-        #                     break
-        #             if blocking == 1:
-        #                 break
-        #
-        #             path_len = cal_len(path)  # physical length of the path
-        #             num_FS = cal_FS(current_bandwidth, path_len)
-        #             slot_temp = [1] * SLOT_TOTAL
-        #             path_links = calclink(path)
-        #             slot_temp = get_new_slot_temp(slot_temp, path_links,
-        #                                           slot_map)  # spectrum utilization on the whole path 确保新来的业务有可用的频谱资源
-        #             (flag, fs_start, fs_end) = judge_availability(slot_temp, num_FS, FS_id)
-        #             if flag == 1:
-        #                 slot_map, slot_map_t = update_slot_map_for_committing_wp(slot_map, path_links, fs_start, fs_end,
-        #                                                                          slot_map_t,
-        #                                                                          current_TTL)  # update slotmap
-        #                 temp_ = []  # update in-service requests
-        #                 temp_.append(list(path_links))
-        #                 temp_.append(fs_start)
-        #                 temp_.append(fs_end)
-        #                 temp_.append(current_TTL)
-        #                 request_set[req_id] = temp_
-        #                 break
-        #             elif rr == kpath - 1:
-        #                 blocking = 1
-        #
-        #         if req_id > 3000:
-        #             num_blocks += blocking  # count the number of requests that are blocked
-        #             resource_util.append((1 - np.sum(slot_map) / (LINK_NUM * SLOT_TOTAL)) * 100)
-        #             # print('Blocking Nums = {:d}'.format(num_blocks))
-        #
-        # bp = num_blocks / num_req_measure * 100
-        # bp_arr.append(bp)
+        # initiate the EON
+        slot_map = [[1 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # Initialized to be all available
+        slot_map_t = [[0 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # the time each FS will be occupied
+
+        service_time = lambda_time[np.random.randint(0, len_lambda_time)]  # 前面设置len_lambda_time为1，
+        lambda_intervals = 1 / lambda_req  # average time interval between request
+
+        request_set = {}
+
+        req_id = 0
+        num_blocks = 0
+
+        time_to = 0
+        num_req_measure = 10000
+        resource_util = []
+
+        while req_id < num_req_measure + 3000:
+
+            (slot_map, request_set, slot_map_t) = release(slot_map, request_set, slot_map_t, time_to)
+
+            time_to = 0
+            while time_to == 0:
+                time_to = np.random.exponential(lambda_intervals)
+
+            if True:  # If is used just for the sake of convenience...
+
+                req_id += 1
+
+                # generate current request
+                if nonuniform is True:
+                    sd_onehot = [x for x in range(num_src_dest_pair)]
+                    sd_id = np.random.choice(sd_onehot, p=prob_arr)
+                    temp = Src_Dest_Pair[sd_id]
+                else:
+                    temp = Src_Dest_Pair[np.random.randint(0, num_src_dest_pair)]
+                current_src = temp[0]
+                current_dst = temp[1]
+                current_bandwidth = np.random.randint(Bandwidth_start, Bandwidth_end)
+                current_TTL = 0
+                while current_TTL == 0 or current_TTL >= service_time * 2:
+                    current_TTL = np.random.exponential(service_time)
+
+                #  start provision the request
+                blocking = 0
+
+                for rr in range(kpath):
+
+                    path_id = rr // M  # path to use
+                    FS_id = math.fmod(rr, M)  # 取余数 the FS_id's available FS-block to use
+
+                    path = _get_path(current_src, current_dst, Candidate_Paths, path_id)  # 最短路径[2,4,5,7]
+                    # 判断路径中是否有故障节点，有的话直接阻塞+1
+                    for i in range(len(path)-1):
+                        temp = path[i:i+2]
+                        if temp in Fault_nodes or temp.reverse() in Fault_nodes:
+                            blocking = 1
+                            break
+                    if blocking == 1:
+                        break
+
+                    path_len = cal_len(path)  # physical length of the path
+                    num_FS = cal_FS(current_bandwidth, path_len)
+                    slot_temp = [1] * SLOT_TOTAL
+                    path_links = calclink(path)
+                    slot_temp = get_new_slot_temp(slot_temp, path_links,
+                                                  slot_map)  # spectrum utilization on the whole path 确保新来的业务有可用的频谱资源
+                    (flag, fs_start, fs_end) = judge_availability(slot_temp, num_FS, FS_id)
+                    if flag == 1:
+                        slot_map, slot_map_t = update_slot_map_for_committing_wp(slot_map, path_links, fs_start, fs_end,
+                                                                                 slot_map_t,
+                                                                                 current_TTL)  # update slotmap
+                        temp_ = []  # update in-service requests
+                        temp_.append(list(path_links))
+                        temp_.append(fs_start)
+                        temp_.append(fs_end)
+                        temp_.append(current_TTL)
+                        request_set[req_id] = temp_
+                        break
+                    elif rr == kpath - 1:
+                        blocking = 1
+
+                if req_id > 3000:
+                    num_blocks += blocking  # count the number of requests that are blocked
+                    resource_util.append((1 - np.sum(slot_map) / (LINK_NUM * SLOT_TOTAL)) * 100)
+                    # print('Blocking Nums = {:d}'.format(num_blocks))
+
+        bp = num_blocks / num_req_measure * 100
+        bp_arr.append(bp)
         print('epoch:', ex + 1)
+        normal_nodes.sort()
+        print('normal_nodes:', normal_nodes)
         print('Fault_nodes:', Fault_nodes)
-        # print('Blocking Probability = {:.2f}%'.format(bp))
-        # print('Blocking Probability Cumulative = {:.2f}%'.format(np.sum(bp_arr)))
-        # print('Mean Resource Utilization = {:.2f}%'.format(np.mean(resource_util)))
-        # bp_arr_all.append(bp)
-        # bp_arr_all_cumulative.append(np.sum(bp_arr))
-        # resource_util_all.append(np.mean(resource_util))
+        print('Blocking Probability = {:.2f}%'.format(bp))
+        print('Blocking Probability Cumulative = {:.2f}%'.format(np.sum(bp_arr)))
+        print('Mean Resource Utilization = {:.2f}%'.format(np.mean(resource_util)))
+        bp_arr_all.append(bp)
+        bp_arr_all_cumulative.append(np.sum(bp_arr))
+        resource_util_all.append(np.mean(resource_util))
 
     # 存储
     np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
