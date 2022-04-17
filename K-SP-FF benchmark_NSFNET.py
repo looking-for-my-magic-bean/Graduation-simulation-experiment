@@ -449,7 +449,7 @@ if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "贪婪算法"  # 随机算法 贪婪算法 自创算法
+    algorithm = "联合算法"  # 随机算法 贪婪算法 自创算法
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
@@ -478,13 +478,23 @@ if __name__ == "__main__":
         print("随机算法-path：", Fault_nodes)
 
     elif algorithm == "贪婪算法":
-
-        t_nodes_orders, c_nodes_orders, Fault_nodes = greedy_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes, Importance_dict, node_degree_dict, linkmap)
+        t_nodes_orders, c_nodes_orders, Fault_nodes = greedy_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes,
+                                                                       Importance_dict, node_degree_dict, linkmap)
         Fault_nodes = deque(Fault_nodes)
         Fault_nodes_copy = Fault_nodes.copy()
         print("贪婪算法-t_node：", t_nodes_orders)
         print("贪婪算法-c_node：", c_nodes_orders)
         print("贪婪算法-path：", Fault_nodes)
+
+    elif algorithm == "联合算法":
+        t_nodes_orders = [6, 8, 7, 5, 4]
+        c_nodes_orders = [20, 22, 21, 19, 18]
+        Fault_nodes = deque([[6, 20], [6, 10], [6, 14], [8, 22], [1, 8], [8, 9], [7, 21], [7, 8], [7, 10], [5, 19], [5, 6], [5, 7], [4, 18], [4, 5], [2, 4],
+                             [4, 11], [3, 6]])
+        Fault_nodes_copy = Fault_nodes.copy()
+        print("联合算法-t_node：", t_nodes_orders)
+        print("联合算法-c_node：", c_nodes_orders)
+        print("联合算法-path：", Fault_nodes)
 
     for ex in range(10):
 
