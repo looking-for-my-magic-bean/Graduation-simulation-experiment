@@ -148,9 +148,10 @@ trafic_dis = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
+# 随机生成切片业务
 slice_service = Generate_slice_service_array(14, 5)
 trafic_dis += slice_service
-# 获得含有业务重要度的字典
+# 获得含有业务重要度的字典，计算节点的重要度时通过上一个函数随机产生的
 Importance_dict = get_node_importance(28, trafic_dis)
 node_degree_dict = get_node_degree(linkmap)
 
@@ -163,8 +164,8 @@ N = 10  # number of paths each src-dest pair 源节点和目标节点对的路�
 M = 1  # first M starting FS allocation positions are considered 这个变量代表什么？
 
 kpath = 1  # = 1 SP-FF, = 5, KSP-FF 分别是最短路算法和K条最短路算法，K条最短路是K条最短路中随机选择一条最近的路
-Bandwidth_start = 2  # 25
-Bandwidth_end = 10   # 101
+Bandwidth_start = 2  # 25   1   2
+Bandwidth_end = 10   # 101  2   10
 
 
 lambda_req = 12  # average number of requests per provisioning period, for uniform traffic, = 10, for nonuniform traffic = 16  12
@@ -369,15 +370,46 @@ def get_surround_nodes(node, normal_nodes, linkmap):
     return num
 
 
+def get_available_c_nodes(node, normal_nodes, linkmap):
+    num = 0
+    for i in normal_nodes:
+        if linkmap[node][i] is not None and i > 14 :
+            num += 1
+    return num
+
+
+def get_unavailable_c_nodes(node, normal_nodes, linkmap):
+    num = 0
+    for i in range(14, 29):
+        if (linkmap[node][i] is not None) and (i not in normal_nodes):
+            num += 1
+    return num
+
+
+def get_available_t_nodes(node, normal_nodes, linkmap):
+    num = 0
+    for i in normal_nodes:
+        if linkmap[i][node] is not None:
+            num += 1
+    return num
+
+
 # ！！！！！！边的恢复思路不清晰
 def get_surround_edge(node, normal_node, linkmap, fault_edge):
     candidate_edge = []
     for i in range(1, 15):
-        if linkmap[node][i] is not None and ([node, i] in fault_edge or [i, node] in fault_edge):
+        if (linkmap[node][i] is not None or linkmap[i][node] is not None) and ([node, i] in fault_edge or [i, node] in fault_edge):
             if i in normal_node:
-                candidate_edge.append([node, i, -linkmap[node][i][1], 1] if node < i else [i, node, -linkmap[i][node][1], 1])
+                candidate_edge.append([node, i, -linkmap[node][i][1], 2] if node < i else [i, node, -linkmap[i][node][1], 2])
             else:
-                candidate_edge.append([node, i, -linkmap[node][i][1], 0] if node < i else [i, node, -linkmap[i][node][1], 0])
+                flag = 0
+                for k in fault_edge:
+                    if k[0] in normal_node and k[1] in normal_node and k[0] != node and k[1] != node:
+                        candidate_edge.append([k[0], k[1], -linkmap[k[0]][k[1]][1], 1] if k[0] < k[1] else [k[1], k[0], -linkmap[k[1]][k[0]][1], 1])
+                        flag = 1
+                        break
+                if flag == 0:
+                    candidate_edge.append([node, i, -linkmap[node][i][1], 0] if node < i else [i, node, -linkmap[i][node][1], 0])
     candidate_edge.sort(key=lambda x: (x[3], x[2], x[0]), reverse=True)
     candidate_edge_list = np.array(candidate_edge)[:, :2].tolist()
     while len(candidate_edge_list) < 2:
@@ -445,11 +477,85 @@ def greedy_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes, 
     return t_nodes_order_list, c_nodes_order_list, fault_edge_order
 
 
+def joint_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes, Importance_dict, node_degree_dict, linkmap):
+    temp_t_nodes_order = []
+    temp_c_nodes_order = []
+
+    fault_edge_order_t = []
+    fault_edge_order_c = []
+    fault_edge_order = []
+
+    t_nodes_order_list = []
+    c_nodes_order_list = []
+    t_nodes_order = t_nodes_orders.copy()
+    c_nodes_order = c_nodes_orders.copy()
+    fault_edge = Fault_nodes.copy()
+    normal_node = normal_nodes.copy()
+
+    cloud_network_map = {1:15, 2:16, 3:17, 4:18, 5:19, 6:20, 7:21, 8:22, 9:23, 10:24, 11:25, 12:26, 13:27, 14:28,
+                         15:1, 16:2, 17:3, 18:4, 19:5, 20:6, 21:7, 22:8, 23:9, 24:10, 25:11, 26:12, 27:13, 28:14}
+
+    # 联合恢复
+    for i in range(len(t_nodes_order)):
+        # 恢复传送节点
+        for j in t_nodes_order:
+            surround_nodes_num = get_surround_nodes(j, normal_node, linkmap)
+            available_c_nodes_num = get_available_c_nodes(j, normal_node, linkmap)
+            unavailable_c_nodes_num = get_unavailable_c_nodes(j, normal_node, linkmap)
+            surround_c_nodes_imp = Importance_dict[cloud_network_map[j]]
+            temp_t_nodes_order.append([j, node_degree_dict[j], surround_nodes_num,
+                                       available_c_nodes_num, unavailable_c_nodes_num, surround_c_nodes_imp])
+        temp_t_nodes_order.sort(key=lambda x: (x[3], x[4], x[5], x[1], x[2], x[0]), reverse=True)
+        restore_node = temp_t_nodes_order[0][0]  # 获得当前阶段的恢复节点
+        temp_t_nodes_order = []                  # 清理暂时的传送节点序列
+        normal_node.append(restore_node)         # 将恢复的传送节点加入到正常节点中
+        t_nodes_order.remove(restore_node)       # 将恢复的传送节点从未回复的传送节点中移除
+        t_nodes_order_list.append(restore_node)  # 将恢复的传送节点按照顺序加入到节点恢复顺序列表中去
+        # 恢复传送边
+        restore_edge_t1,  restore_edge_t2 = get_surround_edge(restore_node, normal_node, linkmap, fault_edge)
+        fault_edge.remove(restore_edge_t1)
+        fault_edge.remove(restore_edge_t2)
+        fault_edge_order_t.append(restore_edge_t1)
+        fault_edge_order_t.append(restore_edge_t2)
+
+        # 恢复云节点
+        for ii in c_nodes_order:
+            available_t_nodes_num = get_available_t_nodes(ii, normal_node, linkmap)
+            map_surround_t_nodes_num = get_surround_nodes(cloud_network_map[ii], normal_node, linkmap)
+            temp_c_nodes_order.append([ii, Importance_dict[ii], available_t_nodes_num, map_surround_t_nodes_num])
+        temp_c_nodes_order.sort(key=lambda x: (x[2], x[1], x[3], x[0]), reverse=True)
+        restore_node = temp_c_nodes_order[0][0]  # 获得当前阶段的恢复节点
+        temp_c_nodes_order = []                  # 清理暂时的传送节点序列
+        normal_node.append(restore_node)         # 将恢复的传送节点加入到正常节点中
+        c_nodes_order.remove(restore_node)       # 将恢复的传送节点从未回复的传送节点中移除
+        c_nodes_order_list.append(restore_node)  # 将恢复的传送节点按照顺序加入到节点恢复顺序列表中去
+
+    # 恢复云节点对应的边
+    for j in c_nodes_order_list:
+        for ii in range(1, 15):
+            if linkmap[ii][j] is not None:
+                restore_edge_c = [ii, j]
+                fault_edge.remove([ii, j])
+                fault_edge_order_c.append(restore_edge_c)
+                break
+
+    # 总的恢复边的顺序
+    for i in range(len(fault_edge_order_c)):
+        fault_edge_order.append(fault_edge_order_c[i])
+        fault_edge_order.append(fault_edge_order_t[(i*2)])
+        fault_edge_order.append(fault_edge_order_t[(i*2)+1])
+
+    while len(fault_edge_order) < len(Fault_nodes):
+        fault_edge_order.append(fault_edge.popleft())
+
+    return t_nodes_order_list, c_nodes_order_list, fault_edge_order
+
+
 if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "联合算法2"  # 随机算法 贪婪算法 自创算法
+    algorithm = "联合算法2"  # 随机算法 贪婪算法 联合算法2
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
@@ -459,8 +565,8 @@ if __name__ == "__main__":
     paths_order = deque([])
     t_nodes_orders = [4, 5, 6, 7, 8]
     c_nodes_orders = [18, 19, 20, 21, 22]
-    Fault_nodes = deque([[1, 8], [2, 4], [3, 6], [4, 5], [4, 11], [5, 7], [5, 6], [6, 10], [6, 14], [7, 10], [7, 8], [8, 9],
-                         [4, 18], [5, 19], [6, 20], [7, 21], [8, 22]])  # 双向队列
+    Fault_nodes = deque([[1, 8], [2, 4], [3, 6], [4, 5], [4, 11], [5, 7], [5, 6], [6, 10], [6, 14],
+                         [7, 10], [7, 8], [8, 9], [4, 18], [5, 19], [6, 20], [7, 21], [8, 22]])  # 双向队列
     normal_nodes = [1, 2, 3, 9, 10, 11, 12, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28]
     print("原始通信节点-t_node：", t_nodes_orders)
     print("原始计算节点-c_node：", c_nodes_orders)
@@ -489,7 +595,8 @@ if __name__ == "__main__":
     # elif algorithm == "联合算法":
     #     t_nodes_orders = [6, 8, 7, 5, 4]
     #     c_nodes_orders = [20, 22, 21, 19, 18]
-    #     Fault_nodes = deque([[6, 20], [6, 10], [6, 14], [8, 22], [1, 8], [8, 9], [7, 21], [7, 8], [7, 10], [5, 19], [5, 6], [5, 7], [4, 18], [4, 5], [2, 4],
+    #     Fault_nodes = deque([[6, 20], [6, 10], [6, 14], [8, 22], [1, 8], [8, 9], [7, 21], [7, 8], [7, 10], [5, 19],
+    #     [5, 6], [5, 7], [4, 18], [4, 5], [2, 4],
     #                          [4, 11], [3, 6]])
     #     Fault_nodes_copy = Fault_nodes.copy()
     #     print("联合算法-t_node：", t_nodes_orders)
@@ -497,10 +604,14 @@ if __name__ == "__main__":
     #     print("联合算法-path：", Fault_nodes)
 
     elif algorithm == "联合算法2":
-        t_nodes_orders = [6, 8, 5, 7, 4]
-        c_nodes_orders = [20, 22, 19, 21, 18]
-        Fault_nodes = deque([[6, 20], [6, 10], [6, 14], [8, 22], [1, 8], [8, 9], [5, 19], [5, 6], [3, 6], [7, 21], [5, 7], [7, 8], [4, 18], [2, 4], [4, 5],
-                             [4, 11], [7, 10]])
+        # t_nodes_orders = [6, 8, 5, 7, 4]
+        # c_nodes_orders = [20, 22, 19, 21, 18]
+        # Fault_nodes = deque([[6, 20], [6, 10], [6, 14], [8, 22], [1, 8], [8, 9], [5, 19], [5, 6], [3, 6], [7, 21], [5, 7], [7, 8], [4, 18], [2, 4], [4, 5],
+        #                      [4, 11], [7, 10]])
+
+        t_nodes_orders, c_nodes_orders, Fault_nodes = joint_algorithm(t_nodes_orders, c_nodes_orders, Fault_nodes, normal_nodes,
+                                                                       Importance_dict, node_degree_dict, linkmap)
+        Fault_nodes = deque(Fault_nodes)
         Fault_nodes_copy = Fault_nodes.copy()
         print("联合算法-t_node：", t_nodes_orders)
         print("联合算法-c_node：", c_nodes_orders)
@@ -624,10 +735,16 @@ if __name__ == "__main__":
         resource_util_all.append(np.mean(resource_util))
 
     # 存储
-    np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
-    np.save('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
-    np.save('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
-    data_write('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
-    data_write('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
-    data_write('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
+    # np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
+    # np.save('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
+    # np.save('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
+    # data_write('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
+    # data_write('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
+    # data_write('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
+    # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
+    # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
+    # np.save('data/带宽25-101' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
+    # data_write('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
+    # data_write('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
+    # data_write('data/带宽25-101' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
 
