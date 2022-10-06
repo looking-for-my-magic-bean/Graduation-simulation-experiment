@@ -362,6 +362,50 @@ def restore(n, t_nodes_orders, c_nodes_orders, paths_order):
             Fault_nodes.remove(temp)
 
 
+def restore_resources(n, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability, Available_res_t, Available_res_c):
+
+    epoch = 0
+    for (k, node) in enumerate(t_nodes_orders):
+        if nodes_work_probability[node] != 1:
+            epoch = k
+            need_resources = 1 - nodes_work_probability[node]
+            if Available_res_t[n] >= need_resources:
+                nodes_work_probability[node] = 1
+                Available_res_t[n+1] = Available_res_t[n+1] + (Available_res_t[n]-need_resources)
+                Available_res_t[n] = 0
+            else:
+                nodes_work_probability[node] = nodes_work_probability[node] + Available_res_t[n]
+                Available_res_t[n] = 0
+            break
+        else:
+            continue
+
+    for (k, node) in enumerate(c_nodes_orders):
+        if nodes_work_probability[node] != 1:
+            epoch = k
+            need_resources = 1 - nodes_work_probability[node]
+            if Available_res_c[n] >= need_resources:
+                nodes_work_probability[node] = 1
+                Available_res_c[n+1] = Available_res_c[n+1] + (Available_res_c[n]-need_resources)
+                Available_res_c[n] = 0
+            else:
+                nodes_work_probability[node] = nodes_work_probability[node] + Available_res_c[n]
+                Available_res_c[n] = 0
+            break
+        else:
+            continue
+
+    if t_nodes_orders[epoch] not in normal_nodes:
+        normal_nodes.append(t_nodes_orders[epoch])
+    if c_nodes_orders[epoch] not in normal_nodes:
+        normal_nodes.append(c_nodes_orders[epoch])
+    for i in range(len(paths_order)-1, -1, -1):
+        if paths_order[i][0] in normal_nodes and paths_order[i][1] in normal_nodes:
+            temp = paths_order[i]
+            paths_order.remove(temp)
+            Fault_nodes.remove(temp)
+
+
 def get_surround_nodes(node, normal_nodes, linkmap):
     num = 0
     for i in normal_nodes:
@@ -555,7 +599,7 @@ if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "随机算法"  # 随机算法 贪婪算法 联合算法2
+    algorithm = "贪婪算法"  # 随机算法 贪婪算法 联合算法2
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
@@ -565,6 +609,8 @@ if __name__ == "__main__":
     paths_order = deque([])
     nodes_work_probability = {1:1, 2:1, 3:1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:1, 11:1, 12:1, 13:1, 14:1,
                                 15:1, 16:1, 17:1, 18:0, 19:0, 20:0, 21:0, 22:0, 23:1, 24:1, 25:1, 26:1, 27:1, 28:1}
+    Available_res_t = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0]
+    Available_res_c = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0]
     t_nodes_orders = [4, 5, 6, 7, 8]
     c_nodes_orders = [18, 19, 20, 21, 22]
     Fault_nodes = deque([[1, 8], [2, 4], [3, 6], [4, 5], [4, 11], [5, 7], [5, 6], [6, 10], [6, 14],
@@ -635,7 +681,7 @@ if __name__ == "__main__":
                 paths_order.append(Fault_nodes_copy.popleft())
             elif len(Fault_nodes_copy) > 0:
                 paths_order.append(Fault_nodes_copy.popleft())
-            restore(ex - 1, t_nodes_orders, c_nodes_orders, paths_order)
+            restore_resources(ex - 1, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability, Available_res_t, Available_res_c)
 
         # initiate the EON
         slot_map = [[1 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # Initialized to be all available
@@ -688,12 +734,23 @@ if __name__ == "__main__":
                     FS_id = math.fmod(rr, M)  # 取余数 the FS_id's available FS-block to use
 
                     path = _get_path(current_src, current_dst, Candidate_Paths, path_id)  # 最短路径[16,2,4,11,12,26]
-                    # 判断路径中是否有故障节点，有的话直接阻塞+1
+                    # 判断路径中是否有故障节点，有的话直接阻塞+1，这里不要用reverse，其是对原序列本身做反转且无法直接用in做判断
                     for i in range(len(path)-1):
                         temp = path[i:i+2]
                         if temp in Fault_nodes or temp[::-1] in Fault_nodes:
                             blocking = 1
                             break
+                    if blocking == 1:
+                        break
+                    # 判断路径中是否有故障节点未完全修复，有则以未完全修复的比例作为业务阻塞的概率，如有20%未完全修复，则阻塞概率为0.2
+                    temp_p = 1
+                    for j in path:
+                        temp_p = temp_p*nodes_work_probability[j]
+                    R = random.random()
+                    if R <= temp_p:
+                        blocking = 0
+                    else:
+                        blocking = 1
                     if blocking == 1:
                         break
 
@@ -737,12 +794,12 @@ if __name__ == "__main__":
         resource_util_all.append(np.mean(resource_util))
 
     # 存储
-    np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
-    np.save('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
-    np.save('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
-    data_write('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
-    data_write('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
-    data_write('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
+    # np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
+    # np.save('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
+    # np.save('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
+    # data_write('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
+    # data_write('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
+    # data_write('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
     # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
     # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
     # np.save('data/带宽25-101' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
