@@ -406,6 +406,58 @@ def restore_resources(n, t_nodes_orders, c_nodes_orders, paths_order, nodes_work
             Fault_nodes.remove(temp)
 
 
+def restore_resources_AR(n, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability, Available_res_t, Available_res_c):
+
+    max_need_epoch = 0
+    max_need = 0
+
+    # 遍历待修复节点 找出需要资源最多的节点，若需要资源相同，则按原恢复顺序排序
+    for (k, node) in enumerate(t_nodes_orders):
+        need_resources = 1 - nodes_work_probability[node]
+        if need_resources > max_need:
+            max_need = need_resources
+            max_need_epoch = k
+
+    # 对确定要修复的节点进行资源修复
+    repaired_node_t = t_nodes_orders[max_need_epoch]
+    need_resources = 1 - nodes_work_probability[repaired_node_t]
+    if Available_res_t[n] >= need_resources:
+        nodes_work_probability[repaired_node_t] = 1
+        Available_res_t[n+1] = Available_res_t[n+1] + (Available_res_t[n]-need_resources)
+        Available_res_t[n] = 0
+    else:
+        nodes_work_probability[repaired_node_t] = nodes_work_probability[repaired_node_t] + Available_res_t[n]
+        Available_res_t[n] = 0
+
+    # 遍历待修复节点 找出需要资源最多的节点，若需要资源相同，则按原恢复顺序排序
+    for (k, node) in enumerate(c_nodes_orders):
+        need_resources = 1 - nodes_work_probability[node]
+        if need_resources > max_need:
+            max_need = need_resources
+            max_need_epoch = k
+
+    # 对确定要修复的节点进行资源修复
+    repaired_node_c = c_nodes_orders[max_need_epoch]
+    need_resources = 1 - nodes_work_probability[repaired_node_c]
+    if Available_res_c[n] >= need_resources:
+        nodes_work_probability[repaired_node_c] = 1
+        Available_res_c[n+1] = Available_res_c[n+1] + (Available_res_c[n]-need_resources)
+        Available_res_c[n] = 0
+    else:
+        nodes_work_probability[repaired_node_c] = nodes_work_probability[repaired_node_c] + Available_res_c[n]
+        Available_res_c[n] = 0
+
+    if repaired_node_t not in normal_nodes:
+        normal_nodes.append(repaired_node_t)
+    if repaired_node_c not in normal_nodes:
+        normal_nodes.append(repaired_node_c)
+    for i in range(len(paths_order)-1, -1, -1):
+        if paths_order[i][0] in normal_nodes and paths_order[i][1] in normal_nodes:
+            temp = paths_order[i]
+            paths_order.remove(temp)
+            Fault_nodes.remove(temp)
+
+
 def get_surround_nodes(node, normal_nodes, linkmap):
     num = 0
     for i in normal_nodes:
@@ -599,7 +651,8 @@ if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "贪婪算法"  # 随机算法 贪婪算法 联合算法2
+    algorithm = "联合算法2"  # 随机算法 贪婪算法 联合算法2
+    perception_strategy = "AR"  # Base AR
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
@@ -609,8 +662,8 @@ if __name__ == "__main__":
     paths_order = deque([])
     nodes_work_probability = {1:1, 2:1, 3:1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:1, 11:1, 12:1, 13:1, 14:1,
                                 15:1, 16:1, 17:1, 18:0, 19:0, 20:0, 21:0, 22:0, 23:1, 24:1, 25:1, 26:1, 27:1, 28:1}
-    Available_res_t = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0]
-    Available_res_c = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0]
+    Available_res_t = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0, 0, 0, 0]
+    Available_res_c = [0.8, 1.3, 0.6, 1.4, 0.9, 0, 0, 0, 0, 0]
     t_nodes_orders = [4, 5, 6, 7, 8]
     c_nodes_orders = [18, 19, 20, 21, 22]
     Fault_nodes = deque([[1, 8], [2, 4], [3, 6], [4, 5], [4, 11], [5, 7], [5, 6], [6, 10], [6, 14],
@@ -681,7 +734,15 @@ if __name__ == "__main__":
                 paths_order.append(Fault_nodes_copy.popleft())
             elif len(Fault_nodes_copy) > 0:
                 paths_order.append(Fault_nodes_copy.popleft())
-            restore_resources(ex - 1, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability, Available_res_t, Available_res_c)
+            if perception_strategy == "Base":
+                restore_resources(ex - 1, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability,
+                                  Available_res_t, Available_res_c)
+            elif perception_strategy == "AR":
+                restore_resources_AR(ex - 1, t_nodes_orders, c_nodes_orders, paths_order, nodes_work_probability,
+                                     Available_res_t, Available_res_c)
+            else:
+                print("请选择资源分配策略！Base or AR")
+        print(nodes_work_probability)
 
         # initiate the EON
         slot_map = [[1 for x in range(SLOT_TOTAL)] for y in range(LINK_NUM)]  # Initialized to be all available
@@ -794,16 +855,10 @@ if __name__ == "__main__":
         resource_util_all.append(np.mean(resource_util))
 
     # 存储
-    # np.save('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
-    # np.save('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
-    # np.save('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
-    # data_write('data' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
-    # data_write('data' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
-    # data_write('data' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
-    # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
-    # np.save('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
-    # np.save('data/带宽25-101' + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
-    # data_write('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
-    # data_write('data/带宽25-101' + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
-    # data_write('data/带宽25-101' + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
+    np.save('data/' + perception_strategy + '/' + algorithm + '_bp_arr_all_' + str(lambda_req), bp_arr_all)
+    np.save('data/' + perception_strategy + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req), bp_arr_all_cumulative)
+    np.save('data/' + perception_strategy + '/' + algorithm + '_resource_util_all_' + str(lambda_req), resource_util_all)
+    data_write('data/' + perception_strategy + '/' + algorithm + '_bp_arr_all_' + str(lambda_req) + '.xlsx', bp_arr_all)
+    data_write('data/' + perception_strategy + '/' + algorithm + '_bp_arr_all_cumulative_' + str(lambda_req) + '.xlsx', bp_arr_all_cumulative)
+    data_write('data/' + perception_strategy + '/' + algorithm + '_resource_util_all_' + str(lambda_req) + '.xlsx', resource_util_all)
 

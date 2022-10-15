@@ -555,7 +555,7 @@ if __name__ == "__main__":
 
     random.seed(66)  # 设置随机数种子，保证每次仿真实验条件相同的情况下具有相同的输出，放在循环中保证每次循环都一样
 
-    algorithm = "随机算法"  # 随机算法 贪婪算法 联合算法2
+    algorithm = "联合算法2"  # 随机算法 贪婪算法 联合算法2
     bp_arr = []
     bp_arr_all = []
     bp_arr_all_cumulative = []
